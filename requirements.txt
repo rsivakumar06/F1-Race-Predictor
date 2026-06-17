@@ -1,0 +1,29 @@
+# Core data
+fastf1>=3.8.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Animation
+Pillow>=10.0.0     # For saving animations as GIF
+pygame-ce>=2.4.0   # Hardware-accelerated race animation
+
+# Dashboard
+streamlit>=1.28.0
+
+# Utilities
+joblib>=1.3.0      # Model serialization
+tqdm>=4.65.0       # Progress bars
+
+# ── Optional ──
+# LightGBM is an alternative tree backend (F1GradientBoostModel(use_lightgbm=True)).
+# The code falls back to XGBoost if it is not installed, so it is not required.
+# Uncomment to enable:
+# lightgbm>=4.0.0

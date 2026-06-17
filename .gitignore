@@ -1,0 +1,52 @@
+# ─── Secrets / environment ───
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+credentials.*
+
+# ─── FastF1 cache (can be many GB; regenerable) ───
+cache/
+*.ff1pkl
+
+# ─── Generated outputs ONLY (source code in data/ and models/ is kept) ───
+data/processed/
+models/saved/
+visualizations/output/
+
+# Catch generated binary artifacts anywhere
+*.parquet
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.onnx
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ─── IDE / OS ───
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ─── Logs ───
+*.log
+logs/
+
+# Claude Code local settings
+.claude/
