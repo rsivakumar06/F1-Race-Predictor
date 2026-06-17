@@ -32,13 +32,6 @@ f1_predictor/
 └── cache/                     # FastF1 cache directory (auto-created, not tracked)
 ```
 
-> **Note on cloning:** `data/processed/`, `models/saved/`, and `cache/` are
-> generated artifacts and are not committed to the repository. A fresh clone
-> contains source code only — you regenerate the data and trained models by
-> running the pipeline (see Quick Start). The initial data collection downloads
-> several seasons of session data from FastF1 and is rate-limited, so the first
-> full run can take a while.
-
 ## Quick Start
 
 ### 1. Install dependencies
