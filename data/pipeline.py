@@ -231,6 +231,73 @@ class F1DataPipeline:
         self._rebuild_combined_dataset()
         return race_df
 
+    def collect_next(self, year: int, force: bool = False) -> pd.DataFrame:
+        """
+        Collect ONLY the next round that still needs data, then stop.
+
+        "Needs data" = the earliest scheduled round not already present with a
+        finishing result. Pre-race-only rounds count as still-needed, so they
+        get refreshed once the race actually runs. Persists via collect_round
+        (season file + combined are updated) and stops at the first round it
+        collects — it never walks the rest of the calendar.
+
+        Returns:
+            That round's DataFrame, or an empty frame if the next race hasn't
+            produced any session data yet (i.e. nothing to collect right now).
+        """
+        try:
+            schedule = fastf1.get_event_schedule(year)
+        except Exception as e:
+            logger.error(f"Could not get schedule for {year}: {e}")
+            return pd.DataFrame()
+
+        race_events = schedule[schedule["EventFormat"] != "testing"]
+
+        # Which rounds already have a finishing result on disk?
+        have_rounds = set()
+        if not force:
+            season_path = self.output_dir / f"season_{year}_raw.parquet"
+            if season_path.exists():
+                done = pd.read_parquet(season_path)
+                if "IsPreRace" in done.columns:
+                    done = done[~done["IsPreRace"].fillna(False)]
+                have_rounds = {int(r) for r in done["RoundNumber"].dropna().unique()}
+
+        for _, event in race_events.iterrows():
+            round_num = int(event["RoundNumber"])
+            if round_num == 0:
+                continue  # Skip pre-season testing
+            if round_num in have_rounds and not force:
+                continue  # already collected with a result — keep looking
+
+            event_name = event["EventName"]
+            logger.info(
+                f"Next round needing data: {year} R{round_num} ({event_name}) — collecting..."
+            )
+            try:
+                race_df = self.collect_round(year, round_num, event_name)
+            except Exception as e:
+                if self._is_rate_limit(e):
+                    self._rate_limited = True
+                    logger.warning(
+                        f"Hit FastF1's hourly call limit at {year} R{round_num}. "
+                        f"Re-run the same command in ~1 hour to continue."
+                    )
+                    return pd.DataFrame()
+                raise
+
+            if race_df.empty:
+                logger.info(
+                    f"{year} R{round_num} ({event_name}) has no session data yet — "
+                    f"the next race likely hasn't run. Nothing collected."
+                )
+                return pd.DataFrame()
+
+            return race_df  # collected exactly one round; stop here
+
+        logger.info(f"Season {year}: every scheduled round is already collected.")
+        return pd.DataFrame()
+
     @staticmethod
     def _dedupe_entries(df: pd.DataFrame) -> pd.DataFrame:
         """One row per (Year, Round, Driver); post-race row wins over pre-race."""

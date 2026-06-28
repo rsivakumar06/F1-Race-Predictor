@@ -3,8 +3,10 @@
 F1 Race Winner Predictor — Main Entry Point
 
 Usage:
-    python main.py --step collect              # Download data from FastF1
-    python main.py --step collect --year 2026  # Single season
+    python main.py --step collect                     # Download all seasons
+    python main.py --step collect --year 2026          # Next uncollected race only
+    python main.py --step collect --year 2026 --round 9    # One specific round, then stop
+    python main.py --step collect --year 2026 --full   # Whole season (resumable)
     python main.py --step features             # Run feature engineering
     python main.py --step train                # Train ML model (Phase 3)
     python main.py --step predict --race Australia --year 2026
@@ -30,14 +32,31 @@ def step_collect(args):
     pipeline = F1DataPipeline()
 
     if args.year and args.round:
-        print(f"\nCollecting Round {args.round} of {args.year}...")
-        df = pipeline.collect_round(args.year, args.round, f"Round {args.round}")
-        if not df.empty:
-            print(f"\nCollected {len(df)} driver entries")
-            print(df[["Abbreviation", "TeamName", "GridPosition", "FinishPosition"]].to_string(index=False))
-    elif args.year:
-        print(f"\nCollecting season {args.year}...")
+        # One specific round, persisted into the season + combined files, then stop.
+        event_name = _lookup_event_name(args.year, args.round)
+        print(f"\nCollecting {args.year} Round {args.round} ({event_name or '...'})...")
+        df = pipeline.collect_round(args.year, args.round, event_name or f"Round {args.round}")
+        if df.empty:
+            print(f"   No session data available for Round {args.round} yet.")
+        else:
+            _print_entries(df, f"Collected {len(df)} driver entries")
+
+    elif args.year and args.full:
+        # Whole season — resumable (skips completed rounds); --force redoes them.
+        print(f"\nCollecting full season {args.year}...")
         pipeline.collect_season(args.year, force=args.force)
+
+    elif args.year:
+        # DEFAULT: collect only the next race that still needs data, then stop.
+        print(f"\nCollecting next uncollected race of {args.year}...")
+        df = pipeline.collect_next(args.year, force=args.force)
+        if df.empty:
+            print("   Up to date, or the next race hasn't run yet — nothing collected.")
+        else:
+            rnd = int(df["RoundNumber"].iloc[0])
+            nm = df["EventName"].iloc[0] if "EventName" in df.columns else f"Round {rnd}"
+            _print_entries(df, f"Collected Round {rnd} — {nm} ({len(df)} rows)")
+
     else:
         print(f"\nCollecting all seasons: {config.ALL_SEASONS}")
         pipeline.collect_all_seasons()
@@ -45,6 +64,28 @@ def step_collect(args):
     print("\nData collection complete!")
     print(f"   Cache: {config.CACHE_DIR}")
     print(f"   Data:  {config.DATA_DIR}")
+
+
+def _lookup_event_name(year, round_number):
+    """Best-effort human-readable event name from the FastF1 schedule."""
+    try:
+        import fastf1
+        sched = fastf1.get_event_schedule(year)
+        row = sched[sched["RoundNumber"] == round_number]
+        if not row.empty:
+            return str(row["EventName"].iloc[0])
+    except Exception:
+        pass
+    return ""
+
+
+def _print_entries(df, header):
+    """Print a short summary of collected driver entries (columns that exist)."""
+    print(f"\n{header}")
+    cols = [c for c in ["Abbreviation", "TeamName", "GridPosition", "FinishPosition"]
+            if c in df.columns]
+    if cols:
+        print(df[cols].to_string(index=False))
 
 
 def step_features(args):
@@ -269,6 +310,9 @@ Examples:
     parser.add_argument("--force", action="store_true",
                         help="Re-collect rounds already on disk (e.g. to upgrade "
                              "results-only rounds once the API is healthy)")
+    parser.add_argument("--full", action="store_true",
+                        help="With --year: collect/refresh the whole season instead "
+                             "of just the next uncollected race")
 
     args = parser.parse_args()
 
